@@ -1,0 +1,256 @@
+# API Specification
+
+## 1. Base URL
+
+Development:
+
+```text
+http://localhost:8000/api/v1
+```
+
+Production URL will be configured through environment variables.
+
+## 2. Authentication
+
+### POST /auth/register
+
+Creates a permitted user account.
+
+### POST /auth/login
+
+Returns an access token.
+
+### GET /auth/me
+
+Returns the authenticated user's profile.
+
+## 3. Routes
+
+### GET /routes
+
+Returns active routes.
+
+### GET /routes/{route_id}
+
+Returns route details and ordered stops.
+
+### POST /routes
+
+Management only.
+
+### PATCH /routes/{route_id}
+
+Management only.
+
+### DELETE /routes/{route_id}
+
+Prefer deactivation rather than physical deletion.
+
+## 4. Stops
+
+### GET /stops
+
+Returns available stops.
+
+### POST /stops
+
+Management only.
+
+### PATCH /stops/{stop_id}
+
+Management only.
+
+## 5. Buses
+
+### GET /buses
+
+Management/operator permissions according to business rules.
+
+### POST /buses
+
+Management only.
+
+### PATCH /buses/{bus_id}
+
+Management only.
+
+## 6. Operator Assignments
+
+### POST /operators/{operator_id}/assignments
+
+Management only.
+
+### GET /operators/me/assignment
+
+Operator only.
+
+## 7. Fares
+
+### GET /fares
+
+Returns applicable fares.
+
+### GET /fares/search
+
+Example query:
+
+```text
+/fares/search?origin_stop_id=...&destination_stop_id=...
+```
+
+### POST /fares
+
+Management only.
+
+### PATCH /fares/{fare_id}
+
+Management only.
+
+## 8. Trips
+
+### POST /trips/start
+
+Operator only.
+
+Request concept:
+
+```json
+{
+  "bus_id": "uuid",
+  "route_id": "uuid"
+}
+```
+
+The backend must verify operator authorization.
+
+### POST /trips/{trip_id}/end
+
+Operator only.
+
+### GET /trips/active
+
+Returns active trips relevant to a route.
+
+## 9. Location
+
+### POST /trips/{trip_id}/location
+
+Operator only.
+
+Example:
+
+```json
+{
+  "latitude": -17.8252,
+  "longitude": 31.0335,
+  "speed": 35.5,
+  "heading": 90,
+  "captured_at": "2026-10-04T18:00:00Z"
+}
+```
+
+The backend must:
+- Verify authentication
+- Verify operator owns/controls the active trip
+- Validate coordinates
+- Store the location
+- Record server receipt time
+
+### GET /trips/{trip_id}/location/latest
+
+Returns:
+- latitude
+- longitude
+- captured_at
+- received_at
+- freshness status
+
+## 10. Commuter Journey Search
+
+### GET /journeys/search
+
+Parameters:
+
+```text
+origin_stop_id
+destination_stop_id
+```
+
+Response should contain:
+- route
+- fare
+- active bus
+- latest location
+- last updated time
+- ETA
+
+## 11. Analytics
+
+Management only.
+
+### GET /analytics/overview
+
+Returns high-level demand statistics.
+
+### GET /analytics/routes
+
+Returns route popularity.
+
+### GET /analytics/destinations
+
+Returns destination demand.
+
+### GET /analytics/origin-destination
+
+Returns popular travel pairs.
+
+### GET /analytics/demand-by-time
+
+Returns demand grouped by time period.
+
+## 12. API Response Principles
+
+Use consistent responses.
+
+Success example:
+
+```json
+{
+  "data": {},
+  "message": "Success"
+}
+```
+
+Validation error:
+
+```json
+{
+  "detail": "Invalid request"
+}
+```
+
+Do not expose:
+- password hashes
+- internal secrets
+- database errors
+- stack traces
+
+## 13. HTTP Status Codes
+
+Use:
+- `200` successful read/update
+- `201` successful creation
+- `204` successful deletion/deactivation where appropriate
+- `400` invalid request
+- `401` unauthenticated
+- `403` unauthorized role/action
+- `404` resource not found
+- `409` business conflict
+- `422` validation error
+- `500` unexpected server error
+
+## 14. API Development Rule
+
+Do not implement every endpoint at once.
+
+Implement endpoints according to the roadmap phase and test them before proceeding.
