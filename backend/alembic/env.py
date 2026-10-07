@@ -8,6 +8,11 @@ from alembic import context
 from app.core.config import settings
 from app.db.base import Base
 
+# Import the model package so that every table is registered on
+# Base.metadata. Without this, autogenerate would not see any model and would
+# generate empty migrations.
+import app.models  # noqa: F401,E402
+
 config = context.config
 
 if config.config_file_name is not None:

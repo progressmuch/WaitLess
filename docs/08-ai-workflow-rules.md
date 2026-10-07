@@ -176,3 +176,4 @@ Next phase:
 ```
 
 Do not start the next phase automatically.
+Make sure to put comments to make it easy for me to understand the code 

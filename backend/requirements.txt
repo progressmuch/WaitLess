@@ -1,11 +1,25 @@
+# Web framework and server
 fastapi==0.115.4
 uvicorn[standard]==0.32.0
-SQLAlchemy==2.0.36
-alembic==1.14.0
-psycopg2-binary==2.9.10
+
+# Database
+# NOTE: SQLAlchemy >= 2.1 is required on Python 3.14; 2.0.x raises
+# "TypeError: descriptor '__getitem__' requires a 'typing.Union' object" when
+# a model uses Mapped[Optional[...]].
+SQLAlchemy==2.1.3
+alembic==1.20.0
+psycopg2-binary==2.9.13
+
+# Configuration
 pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# Security
+# Argon2id password hashing through pwdlib.
+# (passlib 1.7.4 is NOT used: it is incompatible with bcrypt >= 5.)
+pwdlib[argon2]==0.3.1
 python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+
+# Testing
 pytest==8.3.3
 httpx==0.27.2
-python-dotenv==1.0.1

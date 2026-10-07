@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.exceptions import CustomException
@@ -29,6 +30,9 @@ async def custom_exception_handler(request, exc: CustomException):
         status_code=exc.status_code,
         content={"detail": exc.detail},
     )
+
+# Mount all versioned routers (Phase 1: /api/v1/auth/*).
+app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/health", tags=["health"])
 async def health_check():

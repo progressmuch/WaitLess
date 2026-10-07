@@ -1,0 +1,50 @@
+# --- Secrets and local configuration -----------------------------------------
+# Never commit real credentials. .env.example IS tracked as the template.
+.env
+.env.*
+!.env.example
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+WaitLessVenv/
+
+# Build / packaging artefacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Caches and tooling ------------------------------------------------------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# --- Local databases ---------------------------------------------------------
+# Stray SQLite files from early experiments. PostgreSQL is the real database.
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Logs --------------------------------------------------------------------
+*.log
+logs/
+
+# --- Editors and OS ----------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
