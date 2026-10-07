@@ -91,6 +91,9 @@ Constraint:
 UNIQUE(route_id, stop_sequence)
 ```
 
+`estimated_minutes_from_start` is nullable: a route can be laid out before its
+timing data exists. When present it must never decrease along `stop_sequence`.
+
 ## 7. Buses
 
 ```text

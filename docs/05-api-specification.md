@@ -28,29 +28,54 @@ Returns the authenticated user's profile.
 
 ### GET /routes
 
-Returns active routes.
+Returns active routes. Public, no token required.
+
+Optional `is_active` query parameter; when omitted only active routes are
+returned.
 
 ### GET /routes/{route_id}
 
-Returns route details and ordered stops.
+Returns route details and ordered stops. Public, no token required.
+
+A deactivated route still returns `200` with `is_active: false`; it is only
+hidden from the list.
 
 ### POST /routes
 
 Management only.
 
+Accepts an optional `stops` array of `{stop_id, estimated_minutes_from_start}`
+entries so a route can be created together with its ordered stops in one call.
+A route created without stops starts inactive.
+
 ### PATCH /routes/{route_id}
 
 Management only.
 
+Activating a route (`is_active: true`) that has fewer than two stops returns
+`409`.
+
+### PUT /routes/{route_id}/stops
+
+Management only.
+
+Replaces the full ordered stop list of the route in a single transaction.
+Requires at least two stops (`422` otherwise) and returns `409` when the same
+stop appears twice.
+
 ### DELETE /routes/{route_id}
 
-Prefer deactivation rather than physical deletion.
+Not implemented: routes are deactivated rather than deleted, so this method
+answers `405`. Use `PATCH /routes/{route_id}` with `{"is_active": false}`.
 
 ## 4. Stops
 
 ### GET /stops
 
-Returns available stops.
+Returns available stops. Public, no token required.
+
+Optional `is_active` query parameter; when omitted only active stops are
+returned.
 
 ### POST /stops
 

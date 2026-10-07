@@ -1,16 +1,24 @@
-"""Manual end-to-end verification of the Phase 1 API over real HTTP.
+"""Manual end-to-end verification of the API over real HTTP (Phases 1 and 2).
 
 Starts nothing itself: run the app with
     python -m uvicorn app.main:app --port 8010
-in another shell, then run this script. It uses the development database and
-prints a PASS/FAIL line per check.
+in another shell, then run this script from the `backend/` directory (the
+application loads `.env` relative to the working directory):
+    python tests/manual_api_check.py
+
+It uses the development database - the accounts, stops and routes it creates
+stay behind, all under a unique suffix - and prints a PASS/FAIL line per check.
 """
 
 import json
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
 from uuid import uuid4
+
+# Make `app` importable no matter where the script is launched from.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 BASE = "http://127.0.0.1:8010"
 API = f"{BASE}/api/v1"
@@ -150,6 +158,164 @@ check(
     and all(
         f"/api/v1/auth/{name}" in paths
         for name in ("register", "login", "me", "users")
+    ),
+    str(status),
+)
+
+# --- Phase 2: transport network ---------------------------------------------
+# The Phase 2 writes need a MANAGEMENT account, and none may exist yet. The
+# script creates one directly in the development database (hashed by the
+# application's own Argon2id function, the same way the SQL bootstrap does)
+# and then logs in through the API like any other client.
+
+from app.core.security import hash_password  # noqa: E402
+from app.db.session import SessionLocal  # noqa: E402
+from app.models.user import User, UserRole  # noqa: E402
+
+management_email = f"manual-mgmt-{SUFFIX}@example.com"
+with SessionLocal() as session:
+    session.add(
+        User(
+            full_name="Manual Management",
+            email=management_email,
+            password_hash=hash_password("Password123!"),
+            role=UserRole.MANAGEMENT,
+            is_active=True,
+        )
+    )
+    session.commit()
+
+status, body = call(
+    "POST", "/auth/login", {"email": management_email, "password": "Password123!"}
+)
+check(
+    "management account can log in -> 200 token",
+    status == 200 and bool(body.get("data", {}).get("access_token")),
+    str(status),
+)
+management_token = body.get("data", {}).get("access_token", "")
+
+# 12. Route and stop reads are public - no token sent.
+status, _ = call("GET", "/stops")
+check("GET /stops without token -> 200", status == 200, str(status))
+status, _ = call("GET", "/routes")
+check("GET /routes without token -> 200", status == 200, str(status))
+
+# 13. Management creates two stops.
+stop_ids: list[str] = []
+for label in ("Manual Alpha", "Manual Bravo"):
+    status, body = call(
+        "POST",
+        "/stops",
+        {"name": label, "latitude": -17.8252, "longitude": 31.0335},
+        token=management_token,
+    )
+    check(f"POST /stops ({label}) -> 201", status == 201, str(status))
+    if status == 201:
+        stop_ids.append(body["data"]["id"])
+
+# 14. Commuters may read but not write.
+status, _ = call(
+    "POST",
+    "/stops",
+    {"name": "Nope", "latitude": -17.8, "longitude": 31.0},
+    token=commuter_token,
+)
+check("POST /stops as COMMUTER -> 403", status == 403, str(status))
+
+route_code = f"R{SUFFIX.upper()}"
+status, body = call(
+    "POST",
+    "/routes",
+    {
+        "name": "Manual Line",
+        "code": route_code,
+        "stops": [
+            {"stop_id": stop_ids[0]},
+            {"stop_id": stop_ids[1], "estimated_minutes_from_start": 12},
+        ],
+    },
+    token=management_token,
+)
+check(
+    "POST /routes with stops -> 201 active",
+    status == 201 and body["data"]["is_active"] is True,
+    str(status),
+)
+route_id = body["data"]["id"] if status == 201 else ""
+
+# 15. The public detail returns the ordered stops.
+status, body = call("GET", f"/routes/{route_id}")
+stops = body.get("data", {}).get("stops", [])
+check(
+    "GET /routes/{id} -> 200 with ordered stops",
+    status == 200 and [entry["stop_sequence"] for entry in stops] == [1, 2],
+    str(status),
+)
+
+# 16. Route codes are unique regardless of case.
+status, _ = call(
+    "POST",
+    "/routes",
+    {"name": "Duplicate code", "code": route_code.lower()},
+    token=management_token,
+)
+check("POST /routes with a taken code -> 409", status == 409, str(status))
+
+# 17. Reordering replaces the whole list.
+status, body = call(
+    "PUT",
+    f"/routes/{route_id}/stops",
+    {
+        "stops": [
+            {"stop_id": stop_ids[1]},
+            {"stop_id": stop_ids[0], "estimated_minutes_from_start": 5},
+        ]
+    },
+    token=management_token,
+)
+check(
+    "PUT /routes/{id}/stops -> 200 and reordered",
+    status == 200
+    and [entry["stop_id"] for entry in body["data"]["stops"]]
+    == [stop_ids[1], stop_ids[0]],
+    str(status),
+)
+
+# 18. A draft route cannot be activated before it has stops.
+status, body = call(
+    "POST",
+    "/routes",
+    {"name": "Manual Draft", "code": f"D{SUFFIX.upper()}"},
+    token=management_token,
+)
+check("POST /routes without stops -> 201 draft", status == 201 and body["data"]["is_active"] is False, str(status))
+draft_id = body["data"]["id"] if status == 201 else ""
+status, _ = call("PATCH", f"/routes/{draft_id}", {"is_active": True}, token=management_token)
+check("PATCH activating a draft -> 409", status == 409, str(status))
+
+# 19. Anonymous callers cannot write.
+status, _ = call("POST", "/routes", {"name": "Anon", "code": f"A{SUFFIX.upper()}"})
+check("POST /routes anonymous -> 401", status == 401, str(status))
+
+# 20. Routes are deactivated, never deleted.
+status, _ = call("DELETE", f"/routes/{route_id}", token=management_token)
+check("DELETE /routes/{id} -> 405", status == 405, str(status))
+
+# 21. OpenAPI documents the Phase 2 endpoints too.
+status, body = call("GET", f"{BASE}/api/v1/openapi.json")
+paths = body.get("paths", {}) if status == 200 else {}
+check(
+    "GET /api/v1/openapi.json lists Phase 2 endpoints",
+    status == 200
+    and all(
+        path in paths
+        for path in (
+            "/api/v1/routes",
+            "/api/v1/routes/{route_id}",
+            "/api/v1/routes/{route_id}/stops",
+            "/api/v1/stops",
+        )
     ),
     str(status),
 )
