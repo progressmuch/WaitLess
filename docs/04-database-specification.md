@@ -102,10 +102,15 @@ buses
 - registration_number UNIQUE
 - fleet_number UNIQUE
 - capacity
+- route_id FK routes.id nullable
 - is_active
 - created_at
 - updated_at
 ```
+
+`route_id` records the route a bus is currently assigned to (docs/02 FR-04
+"assign bus to route"). An operator's route is read from their assigned bus,
+so there is exactly one place where a bus's route is stored.
 
 ## 8. Operator Assignments
 
@@ -216,7 +221,8 @@ Stop
 Bus
  ├── Operator Assignment
  ├── Trips
- └── Bus Locations
+ ├── Bus Locations
+ └── Route (the route the bus is currently assigned to)
 
 Trip
  └── Bus Locations

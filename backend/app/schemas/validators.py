@@ -66,3 +66,23 @@ def normalize_route_code(value: str) -> str:
             "Route code must be 2-64 characters: letters, digits, '-' or '_'"
         )
     return normalized
+
+
+# Registration plates and fleet numbers are upper-cased identifiers such as
+# "ABC 1234" or "BUS-007".
+IDENTIFIER_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9 -]{0,31}$")
+
+
+def normalize_identifier(value: str, label: str) -> str:
+    """Trim, upper-case and validate a registration or fleet number.
+
+    Raises:
+        ValueError: if the value is empty or longer than 32 characters, or
+            contains characters other than letters, digits, spaces and '-'.
+    """
+    normalized = normalize_required_text(value, label).upper()
+    if not IDENTIFIER_PATTERN.match(normalized):
+        raise ValueError(
+            f"{label} must be 1-32 characters: letters, digits, spaces or '-'"
+        )
+    return normalized

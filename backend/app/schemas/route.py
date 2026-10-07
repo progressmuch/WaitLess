@@ -166,6 +166,21 @@ class RouteStopRead(BaseModel):
     stop: StopSummary
 
 
+class RouteSummary(BaseModel):
+    """Compact route as embedded in another resource.
+
+    Used by buses and operator assignments, which need the code and name of a
+    route without its stop list.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    code: str
+    is_active: bool
+
+
 class RouteRead(BaseModel):
     """Route without its stops - used by the list, create and update endpoints."""
 

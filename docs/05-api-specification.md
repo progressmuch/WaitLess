@@ -89,15 +89,23 @@ Management only.
 
 ### GET /buses
 
-Management/operator permissions according to business rules.
+Management only.
+
+Optional `is_active` query parameter; when omitted only active buses are
+returned.
 
 ### POST /buses
 
 Management only.
 
+`registration_number` and `fleet_number` are unique; a clash returns `409`.
+
 ### PATCH /buses/{bus_id}
 
 Management only.
+
+`route_id` assigns the bus to a route, or `null` clears the assignment. An
+unknown route id returns `404`.
 
 ## 6. Operator Assignments
 
@@ -105,9 +113,25 @@ Management only.
 
 Management only.
 
+Assigns a bus to an operator. Returns `409` when the target user is not an
+`OPERATOR`, when that operator already has an active assignment, or when the
+bus already has an active operator. The route an operator sees comes from the
+assigned bus (`buses.route_id`).
+
 ### GET /operators/me/assignment
 
 Operator only.
+
+Returns the active assignment together with its bus and that bus's route.
+`404` when the operator has no active assignment.
+
+### DELETE /operators/{operator_id}/assignments
+
+Management only.
+
+Ends the operator's active assignment (`ended_at` set, `is_active: false`);
+the record is kept as history. `404` when there is no active assignment. This
+is the action that resolves the `409` returned by POST.
 
 ## 7. Fares
 

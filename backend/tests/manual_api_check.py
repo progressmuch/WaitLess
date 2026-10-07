@@ -320,6 +320,214 @@ check(
     str(status),
 )
 
+# 22. The fleet is management-only.
+status, _ = call("GET", "/buses")
+check("GET /buses without token -> 401", status == 401, str(status))
+status, _ = call("GET", "/buses", token=commuter_token)
+check("GET /buses as COMMUTER -> 403", status == 403, str(status))
+
+# 23. Management registers a bus, already assigned to the route above.
+plate_input = f"  mn {SUFFIX}  "
+status, body = call(
+    "POST",
+    "/buses",
+    {
+        "registration_number": plate_input,
+        "fleet_number": f"fleet-{SUFFIX}",
+        "capacity": 45,
+        "route_id": route_id,
+    },
+    token=management_token,
+)
+check(
+    "POST /buses -> 201 with normalized identifiers",
+    status == 201
+    and body["data"]["registration_number"] == f"MN {SUFFIX.upper()}"
+    and body["data"]["fleet_number"] == f"FLEET-{SUFFIX.upper()}"
+    and body["data"]["route_id"] == route_id,
+    str(status),
+)
+bus_id = body["data"]["id"] if status == 201 else ""
+
+# 24. A taken plate is a conflict, and a second bus joins the fleet.
+status, _ = call(
+    "POST",
+    "/buses",
+    {
+        "registration_number": f"MN {SUFFIX.upper()}",
+        "fleet_number": f"OTHER-{SUFFIX.upper()}",
+        "capacity": 30,
+    },
+    token=management_token,
+)
+check("POST /buses with a taken plate -> 409", status == 409, str(status))
+
+status, body = call(
+    "POST",
+    "/buses",
+    {
+        "registration_number": f"MN {SUFFIX.upper()} B",
+        "fleet_number": f"FLEETB-{SUFFIX.upper()}",
+        "capacity": 30,
+    },
+    token=management_token,
+)
+check("POST /buses second bus -> 201", status == 201, str(status))
+bus2_id = body["data"]["id"] if status == 201 else ""
+
+# 25. PATCH clears the route with null, then sets it again.
+status, body = call(
+    "PATCH", f"/buses/{bus_id}", {"route_id": None}, token=management_token
+)
+check(
+    "PATCH /buses/{id} route_id null -> 200 cleared",
+    status == 200 and body["data"]["route_id"] is None,
+    str(status),
+)
+status, body = call(
+    "PATCH", f"/buses/{bus_id}", {"route_id": route_id}, token=management_token
+)
+check(
+    "PATCH /buses/{id} assign route -> 200",
+    status == 200 and body["data"]["route_id"] == route_id,
+    str(status),
+)
+status, _ = call(
+    "PATCH", f"/buses/{bus_id}", {"route_id": str(uuid4())}, token=management_token
+)
+check("PATCH /buses/{id} unknown route -> 404", status == 404, str(status))
+
+# 26. Two operator accounts, created directly like the management one.
+def _login_staff(role: UserRole, prefix: str) -> str:
+    email = f"{prefix}-{SUFFIX}@example.com"
+    with SessionLocal() as session:
+        session.add(
+            User(
+                full_name=f"Manual {role.value.title()}",
+                email=email,
+                password_hash=hash_password("Password123!"),
+                role=role,
+                is_active=True,
+            )
+        )
+        session.commit()
+    status, body = call(
+        "POST", "/auth/login", {"email": email, "password": "Password123!"}
+    )
+    assert status == 200, body
+    return body["data"]["access_token"]
+
+
+operator1_token = _login_staff(UserRole.OPERATOR, "manual-op1")
+operator2_token = _login_staff(UserRole.OPERATOR, "manual-op2")
+_, operator1_body = call("GET", "/auth/me", token=operator1_token)
+_, operator2_body = call("GET", "/auth/me", token=operator2_token)
+operator1_id = operator1_body["data"]["id"]
+operator2_id = operator2_body["data"]["id"]
+
+# 27. Nothing assigned yet -> 404, then the assignment and what it returns.
+status, _ = call("GET", "/operators/me/assignment", token=operator1_token)
+check(
+    "GET /operators/me/assignment without assignment -> 404",
+    status == 404,
+    str(status),
+)
+
+status, body = call(
+    "POST",
+    f"/operators/{operator1_id}/assignments",
+    {"bus_id": bus_id},
+    token=management_token,
+)
+check(
+    "POST /operators/{id}/assignments -> 201 with bus and route",
+    status == 201
+    and body["data"]["bus"]["id"] == bus_id
+    and body["data"]["bus"]["route"]["code"] == route_code,
+    str(status),
+)
+
+status, body = call("GET", "/operators/me/assignment", token=operator1_token)
+check(
+    "GET /operators/me/assignment -> 200 with bus and route",
+    status == 200
+    and body["data"]["bus"]["id"] == bus_id
+    and body["data"]["bus"]["route"]["id"] == route_id,
+    str(status),
+)
+
+# 28. The three 409 rules.
+status, _ = call(
+    "POST",
+    f"/operators/{operator1_id}/assignments",
+    {"bus_id": bus2_id},
+    token=management_token,
+)
+check("second assignment for the same operator -> 409", status == 409, str(status))
+
+status, _ = call(
+    "POST",
+    f"/operators/{operator2_id}/assignments",
+    {"bus_id": bus_id},
+    token=management_token,
+)
+check("second driver for the same bus -> 409", status == 409, str(status))
+
+_, commuter_body = call("GET", "/auth/me", token=commuter_token)
+status, _ = call(
+    "POST",
+    f"/operators/{commuter_body['data']['id']}/assignments",
+    {"bus_id": bus2_id},
+    token=management_token,
+)
+check("assigning a COMMUTER -> 409", status == 409, str(status))
+
+# 29. Ending the assignment keeps it as history and frees both sides.
+status, body = call(
+    "DELETE", f"/operators/{operator1_id}/assignments", token=management_token
+)
+check(
+    "DELETE /operators/{id}/assignments -> 200 ended",
+    status == 200
+    and body["data"]["is_active"] is False
+    and bool(body["data"]["ended_at"]),
+    str(status),
+)
+status, _ = call(
+    "DELETE", f"/operators/{operator1_id}/assignments", token=management_token
+)
+check("DELETE without an active assignment -> 404", status == 404, str(status))
+
+status, _ = call(
+    "POST",
+    f"/operators/{operator1_id}/assignments",
+    {"bus_id": bus2_id},
+    token=management_token,
+)
+check("assign again after ending -> 201", status == 201, str(status))
+
+# 30. Operators stay read-only on the fleet.
+status, _ = call("GET", "/buses", token=operator1_token)
+check("GET /buses as OPERATOR -> 403", status == 403, str(status))
+
+# 31. OpenAPI documents the Phase 2b endpoints too.
+status, body = call("GET", f"{BASE}/api/v1/openapi.json")
+paths = body.get("paths", {}) if status == 200 else {}
+check(
+    "GET /api/v1/openapi.json lists Phase 2b endpoints",
+    status == 200
+    and all(
+        path in paths
+        for path in (
+            "/api/v1/buses",
+            "/api/v1/buses/{bus_id}",
+            "/api/v1/operators/{operator_id}/assignments",
+            "/api/v1/operators/me/assignment",
+        )
+    ),
+    str(status),
+)
+
 failed = [name for ok, name in results if not ok]
 print()
 print(f"{len(results) - len(failed)}/{len(results)} checks passed")
