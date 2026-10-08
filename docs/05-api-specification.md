@@ -135,9 +135,20 @@ is the action that resolves the `409` returned by POST.
 
 ## 7. Fares
 
+A fare always belongs to one route and names both ends of a trip, so it
+applies to a defined journey (docs/02 business rule 6). The fare that
+"applies" is the active one whose validity window `[effective_from,
+effective_to)` contains the current moment. Superseded, expired and
+deactivated fares stay in the table as history (docs/02 business rule 7).
+
 ### GET /fares
 
-Returns applicable fares.
+Returns applicable fares, newest first. Public, no token required.
+
+Optional query parameters `route_id`, `origin_stop_id`, `destination_stop_id`
+and `include_history`. Without `include_history=true` only the fares that
+apply right now are returned; with it the preserved history (superseded,
+expired and deactivated fares) is returned as well.
 
 ### GET /fares/search
 
@@ -147,13 +158,49 @@ Example query:
 /fares/search?origin_stop_id=...&destination_stop_id=...
 ```
 
+Public, no token required. Optional `route_id` restricts the search to one
+route. Returns the applicable fares for that stop pair, which is how a
+commuter who selected a journey receives the current fare (Phase 3
+acceptance).
+
+`200` with an empty list when no fare is configured for the pair yet; `404`
+when a stop id (or route id) is unknown; `422` when origin and destination
+are the same stop.
+
 ### POST /fares
 
 Management only.
 
+Body: `route_id`, `origin_stop_id`, `destination_stop_id`, `amount`, plus
+optional `currency` (default `USD`) and optional `effective_from` (default:
+now).
+
+Validation: unknown route or stop is `404`; stops that do not both belong to
+the route, equal origin/destination, a non-positive amount or an amount with
+more than two decimals is `422`. A price change supersedes the previous fare
+instead of overwriting it: the old row keeps its amount and is closed at the
+moment the new price starts. Two active fares of one journey can never cover
+the same moment, so starting a fare where another one already starts returns
+`409`.
+
 ### PATCH /fares/{fare_id}
 
 Management only.
+
+Only the lifecycle may be patched: `is_active` and `effective_to` (`null`
+re-opens the window). The price itself is never edited in place - send a new
+`POST /fares` to change what a journey costs, so the old price survives in
+the history; a payload containing `amount` therefore answers `422`.
+
+`404` for an unknown fare, `422` when `effective_to` is not after
+`effective_from`, `409` when the change would make this fare overlap another
+active fare of the same journey.
+
+### DELETE /fares/{fare_id}
+
+Not implemented: fares are deactivated with `PATCH {"is_active": false}` or
+superseded by a new fare, so DELETE answers `405`. There is likewise no
+`GET /fares/{fare_id}`: fares are read through the list and the search.
 
 ## 8. Trips
 

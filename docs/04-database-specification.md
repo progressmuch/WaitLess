@@ -144,6 +144,23 @@ fares
 
 Historical fares should remain available.
 
+Notes:
+
+- The window `[effective_from, effective_to)` says when the fare applies;
+  `effective_to` NULL marks the current, open-ended fare of a journey. A check
+  constraint (`ck_fares_effective_window`) rejects a window that ends before
+  it starts, even for writes that bypass the service layer.
+- Only `created_at`: a fare is written once and never re-priced, so there is
+  no `updated_at` column. Changing a price inserts a new row and closes the
+  old one.
+- `amount` is `Numeric(10, 2)` (money is decimal, never floating point) and
+  `currency` is a 3-letter ISO 4217 code defaulting to `USD`.
+- Indexes: `ix_fares_route_id` serves the per-route list,
+  `ix_fares_origin_destination` serves the fare search.
+- Overlapping windows for one journey are prevented by the service layer
+  rather than by a unique index: several history rows legitimately share the
+  same `(route_id, origin_stop_id, destination_stop_id)` triple.
+
 ## 10. Trips
 
 ```text

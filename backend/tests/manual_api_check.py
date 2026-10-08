@@ -1,4 +1,4 @@
-"""Manual end-to-end verification of the API over real HTTP (Phases 1 and 2).
+"""Manual end-to-end verification of the API over real HTTP (Phases 1 to 3).
 
 Starts nothing itself: run the app with
     python -m uvicorn app.main:app --port 8010
@@ -523,6 +523,201 @@ check(
             "/api/v1/buses/{bus_id}",
             "/api/v1/operators/{operator_id}/assignments",
             "/api/v1/operators/me/assignment",
+        )
+    ),
+    str(status),
+)
+
+# --- Phase 3: journey pricing ------------------------------------------------
+# Reuses the route and its two stops from Phase 2 above.
+
+# 32. Fares are public reads, like routes and stops.
+status, _ = call("GET", "/fares")
+check("GET /fares without token -> 200", status == 200, str(status))
+status, _ = call(
+    "GET",
+    f"/fares/search?origin_stop_id={stop_ids[0]}&destination_stop_id={stop_ids[1]}",
+)
+check("GET /fares/search without token -> 200", status == 200, str(status))
+
+# 33. Management configures the fare for the journey.
+status, body = call(
+    "POST",
+    "/fares",
+    {
+        "route_id": route_id,
+        "origin_stop_id": stop_ids[0],
+        "destination_stop_id": stop_ids[1],
+        "amount": "1.50",
+    },
+    token=management_token,
+)
+check(
+    "POST /fares -> 201 with decimal string amount and default currency",
+    status == 201
+    and body["data"]["amount"] == "1.50"
+    and body["data"]["currency"] == "USD"
+    and body["data"]["effective_to"] is None,
+    str(status),
+)
+first_fare_id = body["data"]["id"] if status == 201 else ""
+
+# 34. Commuters may read but not configure fares.
+status, _ = call(
+    "POST",
+    "/fares",
+    {
+        "route_id": route_id,
+        "origin_stop_id": stop_ids[0],
+        "destination_stop_id": stop_ids[1],
+        "amount": "9.99",
+    },
+    token=commuter_token,
+)
+check("POST /fares as COMMUTER -> 403", status == 403, str(status))
+status, _ = call(
+    "POST",
+    "/fares",
+    {
+        "route_id": route_id,
+        "origin_stop_id": stop_ids[0],
+        "destination_stop_id": stop_ids[1],
+        "amount": "9.99",
+    },
+)
+check("POST /fares anonymous -> 401", status == 401, str(status))
+
+# 35. The commuter view shows the fare that applies right now.
+status, body = call(
+    "GET",
+    f"/fares/search?origin_stop_id={stop_ids[0]}&destination_stop_id={stop_ids[1]}",
+)
+fares = body.get("data", [])
+check(
+    "GET /fares/search -> 200 with the current fare",
+    status == 200 and len(fares) == 1 and fares[0]["amount"] == "1.50",
+    str(status),
+)
+
+# 36. A price change supersedes the old fare instead of overwriting it.
+status, body = call(
+    "POST",
+    "/fares",
+    {
+        "route_id": route_id,
+        "origin_stop_id": stop_ids[0],
+        "destination_stop_id": stop_ids[1],
+        "amount": "2.00",
+    },
+    token=management_token,
+)
+check("POST /fares (price change) -> 201", status == 201, str(status))
+second_fare_id = body["data"]["id"] if status == 201 else ""
+
+status, body = call("GET", f"/fares?route_id={route_id}&include_history=true")
+history = body.get("data", [])
+old_row = next((item for item in history if item["id"] == first_fare_id), {})
+new_row = next((item for item in history if item["id"] == second_fare_id), {})
+check(
+    "GET /fares include_history keeps the superseded fare",
+    status == 200
+    and len(history) == 2
+    and old_row.get("amount") == "1.50"
+    and old_row.get("effective_to") == new_row.get("effective_from"),
+    str(status),
+)
+status, body = call("GET", f"/fares?route_id={route_id}")
+current = body.get("data", [])
+check(
+    "GET /fares without history returns only the current fare",
+    status == 200 and [item["id"] for item in current] == [second_fare_id],
+    str(status),
+)
+
+# 37. Two fares cannot start at the same moment.
+same_start = "2031-01-01T00:00:00"
+for _ in range(2):
+    status, _ = call(
+        "POST",
+        "/fares",
+        {
+            "route_id": route_id,
+            "origin_stop_id": stop_ids[0],
+            "destination_stop_id": stop_ids[1],
+            "amount": "2.50",
+            "effective_from": same_start,
+        },
+        token=management_token,
+    )
+check("POST /fares with a taken start time -> 409", status == 409, str(status))
+
+# 38. Rule 6: both stops must belong to the route being priced.
+status, body = call(
+    "POST",
+    "/stops",
+    {"name": f"Manual Off-Route {SUFFIX}", "latitude": -17.9, "longitude": 31.1},
+    token=management_token,
+)
+off_route_stop = body["data"]["id"] if status == 201 else ""
+status, _ = call(
+    "POST",
+    "/fares",
+    {
+        "route_id": route_id,
+        "origin_stop_id": stop_ids[0],
+        "destination_stop_id": off_route_stop,
+        "amount": "3.00",
+    },
+    token=management_token,
+)
+check("POST /fares with a stop that is not on the route -> 422", status == 422, str(status))
+
+# 39. Rule 7: the price itself cannot be patched away.
+status, _ = call(
+    "PATCH", f"/fares/{second_fare_id}", {"amount": "9.99"}, token=management_token
+)
+check("PATCH /fares with amount -> 422", status == 422, str(status))
+
+status, _ = call(
+    "PATCH", f"/fares/{second_fare_id}", {"is_active": False}, token=management_token
+)
+check("PATCH /fares deactivate -> 200", status == 200, str(status))
+status, body = call("GET", f"/fares?route_id={route_id}")
+check(
+    "deactivated fare leaves the commuter list",
+    status == 200 and body.get("data") == [],
+    str(status),
+)
+status, _ = call(
+    "PATCH", f"/fares/{second_fare_id}", {"is_active": True}, token=management_token
+)
+check("PATCH /fares reactivate -> 200", status == 200, str(status))
+
+status, _ = call("PATCH", f"/fares/{uuid4()}", {"is_active": True}, token=management_token)
+check("PATCH /fares unknown id -> 404", status == 404, str(status))
+
+# 40. A mistyped search is a 404, an impossible one a 422.
+status, _ = call(
+    "GET", f"/fares/search?origin_stop_id={uuid4()}&destination_stop_id={stop_ids[1]}"
+)
+check("GET /fares/search unknown stop -> 404", status == 404, str(status))
+status, _ = call(
+    "GET", f"/fares/search?origin_stop_id={stop_ids[0]}&destination_stop_id={stop_ids[0]}"
+)
+check("GET /fares/search same stop twice -> 422", status == 422, str(status))
+
+# 41. OpenAPI documents the Phase 3 endpoints too.
+status, body = call("GET", f"{BASE}/api/v1/openapi.json")
+paths = body.get("paths", {}) if status == 200 else {}
+check(
+    "GET /api/v1/openapi.json lists Phase 3 endpoints",
+    status == 200
+    and all(
+        path in paths
+        for path in (
+            "/api/v1/fares",
+            "/api/v1/fares/search",
+            "/api/v1/fares/{fare_id}",
         )
     ),
     str(status),

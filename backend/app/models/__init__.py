@@ -6,6 +6,7 @@ this to detect/create the schema.
 """
 
 from app.models.bus import Bus
+from app.models.fare import Fare
 from app.models.operator_assignment import OperatorAssignment
 from app.models.route import Route
 from app.models.route_stop import RouteStop
@@ -14,6 +15,7 @@ from app.models.user import User, UserRole
 
 __all__ = [
     "Bus",
+    "Fare",
     "OperatorAssignment",
     "Route",
     "RouteStop",
