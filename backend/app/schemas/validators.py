@@ -1,7 +1,15 @@
 """Reusable field validators shared by request schemas."""
 
 import re
+from datetime import datetime, timezone
 from typing import Optional
+
+
+def as_utc(value: Optional[datetime]) -> Optional[datetime]:
+    """Treat a timestamp without an offset as UTC."""
+    if value is None or value.tzinfo is not None:
+        return value
+    return value.replace(tzinfo=timezone.utc)
 
 # Pragmatic email pattern check. Deliberately simple: the goal is to reject
 # obvious typos and to guarantee a stable uniqueness key, not to implement

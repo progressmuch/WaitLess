@@ -11,19 +11,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.schemas.validators import normalize_required_text
+from app.schemas.validators import as_utc, normalize_required_text
 
 
-def as_utc(value: Optional[datetime]) -> Optional[datetime]:
-    """Treat a timestamp without an offset as UTC.
 
-    docs/10 section 3 prefers UTC; a client that sends "2026-11-01T00:00:00"
-    means local wall time, and interpreting it as UTC keeps every stored
-    comparison timezone-aware (PostgreSQL rejects mixed awareness).
-    """
-    if value is None or value.tzinfo is not None:
-        return value
-    return value.replace(tzinfo=timezone.utc)
 
 
 class FareCreate(BaseModel):
