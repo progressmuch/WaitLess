@@ -8,6 +8,7 @@ this to detect/create the schema.
 from app.models.bus import Bus
 from app.models.bus_location import BusLocation
 from app.models.fare import Fare
+from app.models.journey_search import JourneySearch
 from app.models.operator_assignment import OperatorAssignment
 from app.models.route import Route
 from app.models.route_stop import RouteStop
@@ -19,6 +20,7 @@ __all__ = [
     "Bus",
     "BusLocation",
     "Fare",
+    "JourneySearch",
     "OperatorAssignment",
     "Route",
     "RouteStop",
