@@ -6,7 +6,7 @@ from `/api/v1/...` (docs/03-system-architecture.md section 3).
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, buses, fares, operators, routes, stops, trips, analytics
+from app.api.v1.endpoints import auth, buses, fares, journeys, operators, routes, stops, trips, analytics
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
@@ -16,4 +16,5 @@ api_router.include_router(buses.router)
 api_router.include_router(operators.router)
 api_router.include_router(fares.router)
 api_router.include_router(trips.router)
+api_router.include_router(journeys.router)
 api_router.include_router(analytics.router)
