@@ -27,7 +27,7 @@ def _setup_operator(client, headers, api_url: str, suffix: str):
     op = client.post(f"{api_url}/auth/users", headers=headers, json={
         "full_name": "Op", "email": f"op{suffix}@example.com", "password": "Password123!", "role": UserRole.OPERATOR.value
     }).json()["data"]["id"]
-    client.post(f"{api_url}/operators/{op}/assignments", headers=headers, json={"bus_id": bus})
+    client.post(f"{api_url}/operators/op{suffix}@example.com/assignments", headers=headers, json={"bus_id": bus})
     return op, bus, route
 
 
@@ -69,7 +69,7 @@ def test_only_assigned_operator_can_start_trip(client, auth_headers, api_url: st
     s2 = _stop(client, mgmt, api_url, f"{suffix}c2")
     route2 = _route(client, mgmt, api_url, f"{suffix}R2", s1, s2)
     bus2 = client.post(f"{api_url}/buses", headers=mgmt, json={"registration_number": f"{suffix}B2", "fleet_number": f"{suffix}F2", "capacity": 30, "route_id": route2}).json()["data"]["id"]
-    client.post(f"{api_url}/operators/{other}/assignments", headers=mgmt, json={"bus_id": bus2})
+    client.post(f"{api_url}/operators/{suffix}other@example.com/assignments", headers=mgmt, json={"bus_id": bus2})
     other_token = _token_for(client, api_url, f"{suffix}other@example.com")
     r = client.post(f"{api_url}/trips/start", headers={"Authorization": f"Bearer {other_token}"}, json={"bus_id": bus_id, "route_id": route_id})
     assert r.status_code == 403

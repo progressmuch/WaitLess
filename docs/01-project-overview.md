@@ -2,7 +2,7 @@
 
 ## 1. Project Name
 
-Transport Tracking and Commuter Information System
+Transport Tracking and Commuter Information System(WaitLess)
 
 ## 2. Problem
 

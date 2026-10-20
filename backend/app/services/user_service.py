@@ -68,3 +68,12 @@ def get_user_or_404(db: Session, user_id: UUID) -> User:
     if user is None:
         raise NotFoundException("User not found")
     return user
+
+
+def get_user_by_email_or_404(db: Session, email: str) -> User:
+    """Return the user with this email (case-insensitive) or raise a 404."""
+    user = get_user_by_email(db, email)
+    if user is None:
+        raise NotFoundException("User not found")
+    return user
+

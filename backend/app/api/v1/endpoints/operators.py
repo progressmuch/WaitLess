@@ -2,9 +2,13 @@
 
 | Endpoint                                    | Auth required | Role required |
 |---------------------------------------------|---------------|---------------|
-| POST   /operators/{operator_id}/assignments | yes           | MANAGEMENT    |
+| POST   /operators/{operator_email}/assignments | yes        | MANAGEMENT    |
 | GET    /operators/me/assignment             | yes           | OPERATOR      |
-| DELETE /operators/{operator_id}/assignments | yes           | MANAGEMENT    |
+| DELETE /operators/{operator_email}/assignments | yes        | MANAGEMENT    |
+
+Management identifies the operator by email, not UUID, so an operator can be
+assigned or released without first looking up a user id (the backend has no
+user-list endpoint, docs/12 GAP-16).
 
 DELETE does not remove anything: it ends the running assignment (`ended_at`
 set, `is_active: false`) and keeps the row as history. It exists so the 409
@@ -13,7 +17,6 @@ out - management ends the old assignment, then assigns a new bus.
 """
 
 from typing import Annotated
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
@@ -35,24 +38,25 @@ OperatorUser = Annotated[User, Depends(require_roles(UserRole.OPERATOR))]
 
 
 @router.post(
-    "/operators/{operator_id}/assignments",
+    "/operators/{operator_email}/assignments",
     response_model=APIResponse[OperatorAssignmentRead],
     status_code=status.HTTP_201_CREATED,
-    summary="Assign a bus to an operator (MANAGEMENT only)",
+    summary="Assign a bus to an operator by email (MANAGEMENT only)",
 )
 def create_assignment(
-    operator_id: UUID,
+    operator_email: str,
     payload: OperatorAssignmentCreate,
     db: Annotated[Session, Depends(get_db)],
     _current_user: ManagementUser,
 ) -> APIResponse[OperatorAssignmentRead]:
     """Hand a bus to an operator, returning the bus and its route.
 
-    404 if the operator or the bus is unknown. 409 if the target user is not
-    an OPERATOR, if that operator already has an active assignment, or if the
-    bus already has an active driver.
+    The operator is identified by their email address. 404 if the operator or
+    the bus is unknown. 409 if the target user is not an OPERATOR, if that
+    operator already has an active assignment, or if the bus already has an
+    active driver.
     """
-    assignment = assignment_service.create_assignment(db, operator_id, payload)
+    assignment = assignment_service.create_assignment(db, operator_email, payload)
     return APIResponse(
         data=OperatorAssignmentRead.model_validate(assignment),
         message="Bus assigned successfully",
@@ -79,20 +83,21 @@ def get_my_assignment(
 
 
 @router.delete(
-    "/operators/{operator_id}/assignments",
+    "/operators/{operator_email}/assignments",
     response_model=APIResponse[OperatorAssignmentRead],
-    summary="End the operator's active assignment (MANAGEMENT only)",
+    summary="End the operator's active assignment by email (MANAGEMENT only)",
 )
 def end_assignment(
-    operator_id: UUID,
+    operator_email: str,
     db: Annotated[Session, Depends(get_db)],
     _current_user: ManagementUser,
 ) -> APIResponse[OperatorAssignmentRead]:
     """End the running assignment, which stays as history.
 
-    404 if the operator has no active assignment to end.
+    The operator is identified by their email address. 404 if the operator is
+    unknown or has no active assignment to end.
     """
-    assignment = assignment_service.end_assignment(db, operator_id)
+    assignment = assignment_service.end_assignment(db, operator_email)
     return APIResponse(
         data=OperatorAssignmentRead.model_validate(assignment),
         message="Operator assignment ended",

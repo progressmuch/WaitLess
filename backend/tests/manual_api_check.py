@@ -398,7 +398,7 @@ status, _ = call(
 check("PATCH /buses/{id} unknown route -> 404", status == 404, str(status))
 
 # 26. Two operator accounts, created directly like the management one.
-def _login_staff(role: UserRole, prefix: str) -> str:
+def _login_staff(role: UserRole, prefix: str) -> tuple[str, str]:
     email = f"{prefix}-{SUFFIX}@example.com"
     with SessionLocal() as session:
         session.add(
@@ -415,15 +415,11 @@ def _login_staff(role: UserRole, prefix: str) -> str:
         "POST", "/auth/login", {"email": email, "password": "Password123!"}
     )
     assert status == 200, body
-    return body["data"]["access_token"]
+    return body["data"]["access_token"], email
 
 
-operator1_token = _login_staff(UserRole.OPERATOR, "manual-op1")
-operator2_token = _login_staff(UserRole.OPERATOR, "manual-op2")
-_, operator1_body = call("GET", "/auth/me", token=operator1_token)
-_, operator2_body = call("GET", "/auth/me", token=operator2_token)
-operator1_id = operator1_body["data"]["id"]
-operator2_id = operator2_body["data"]["id"]
+operator1_token, operator1_email = _login_staff(UserRole.OPERATOR, "manual-op1")
+operator2_token, operator2_email = _login_staff(UserRole.OPERATOR, "manual-op2")
 
 # 27. Nothing assigned yet -> 404, then the assignment and what it returns.
 status, _ = call("GET", "/operators/me/assignment", token=operator1_token)
@@ -435,12 +431,12 @@ check(
 
 status, body = call(
     "POST",
-    f"/operators/{operator1_id}/assignments",
+    f"/operators/{operator1_email}/assignments",
     {"bus_id": bus_id},
     token=management_token,
 )
 check(
-    "POST /operators/{id}/assignments -> 201 with bus and route",
+    "POST /operators/{email}/assignments -> 201 with bus and route",
     status == 201
     and body["data"]["bus"]["id"] == bus_id
     and body["data"]["bus"]["route"]["code"] == route_code,
@@ -459,7 +455,7 @@ check(
 # 28. The three 409 rules.
 status, _ = call(
     "POST",
-    f"/operators/{operator1_id}/assignments",
+    f"/operators/{operator1_email}/assignments",
     {"bus_id": bus2_id},
     token=management_token,
 )
@@ -467,16 +463,15 @@ check("second assignment for the same operator -> 409", status == 409, str(statu
 
 status, _ = call(
     "POST",
-    f"/operators/{operator2_id}/assignments",
+    f"/operators/{operator2_email}/assignments",
     {"bus_id": bus_id},
     token=management_token,
 )
 check("second driver for the same bus -> 409", status == 409, str(status))
 
-_, commuter_body = call("GET", "/auth/me", token=commuter_token)
 status, _ = call(
     "POST",
-    f"/operators/{commuter_body['data']['id']}/assignments",
+    f"/operators/{commuter_email}/assignments",
     {"bus_id": bus2_id},
     token=management_token,
 )
@@ -484,23 +479,23 @@ check("assigning a COMMUTER -> 409", status == 409, str(status))
 
 # 29. Ending the assignment keeps it as history and frees both sides.
 status, body = call(
-    "DELETE", f"/operators/{operator1_id}/assignments", token=management_token
+    "DELETE", f"/operators/{operator1_email}/assignments", token=management_token
 )
 check(
-    "DELETE /operators/{id}/assignments -> 200 ended",
+    "DELETE /operators/{email}/assignments -> 200 ended",
     status == 200
     and body["data"]["is_active"] is False
     and bool(body["data"]["ended_at"]),
     str(status),
 )
 status, _ = call(
-    "DELETE", f"/operators/{operator1_id}/assignments", token=management_token
+    "DELETE", f"/operators/{operator1_email}/assignments", token=management_token
 )
 check("DELETE without an active assignment -> 404", status == 404, str(status))
 
 status, _ = call(
     "POST",
-    f"/operators/{operator1_id}/assignments",
+    f"/operators/{operator1_email}/assignments",
     {"bus_id": bus2_id},
     token=management_token,
 )
@@ -521,7 +516,7 @@ check(
         for path in (
             "/api/v1/buses",
             "/api/v1/buses/{bus_id}",
-            "/api/v1/operators/{operator_id}/assignments",
+            "/api/v1/operators/{operator_email}/assignments",
             "/api/v1/operators/me/assignment",
         )
     ),

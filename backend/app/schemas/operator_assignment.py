@@ -28,7 +28,7 @@ class BusSummary(BaseModel):
 
 
 class OperatorAssignmentCreate(BaseModel):
-    """Payload for POST /operators/{operator_id}/assignments (MANAGEMENT only)."""
+    """Payload for POST /operators/{operator_email}/assignments (MANAGEMENT only)."""
 
     model_config = ConfigDict(extra="forbid")
 

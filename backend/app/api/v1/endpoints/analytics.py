@@ -1,7 +1,7 @@
 """Analytics endpoints (Phase 7) - Management only."""
 
 from typing import Annotated
-from sqlalchemy import func, select
+from sqlalchemy import func, literal_column, select
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -78,10 +78,11 @@ def origin_dest(db: Session = Depends(get_db), _: ManagementUser = ManagementUse
 
 @router.get("/analytics/demand-by-time")
 def demand_by_time(db: Session = Depends(get_db), _: ManagementUser = ManagementUser):
+    hour = func.date_trunc(literal_column("'hour'"), JourneySearch.searched_at)
     stmt = select(
-        func.date_trunc("hour", JourneySearch.searched_at).label("hour"),
+        hour.label("hour"),
         func.count(JourneySearch.id).label("search_count"),
-    ).group_by(func.date_trunc("hour", JourneySearch.searched_at)).order_by("hour")
+    ).group_by(hour).order_by("hour")
     rows = db.execute(stmt).all()
     data = [{"hour": r.hour.isoformat() if r.hour else None, "search_count": r.search_count} for r in rows]
     return APIResponse(data=data)

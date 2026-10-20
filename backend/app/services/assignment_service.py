@@ -67,9 +67,9 @@ def _ensure_operator_is_free(db: Session, operator_id: UUID) -> None:
 
 
 def create_assignment(
-    db: Session, operator_id: UUID, payload: OperatorAssignmentCreate
+    db: Session, operator_email: str, payload: OperatorAssignmentCreate
 ) -> OperatorAssignment:
-    """Hand a bus to an operator (MANAGEMENT only).
+    """Hand a bus to an operator, identified by email (MANAGEMENT only).
 
     Raises:
         NotFoundException: if the operator or the bus does not exist.
@@ -77,13 +77,13 @@ def create_assignment(
             operator already has an active assignment, or if the bus already
             has a driver.
     """
-    operator: User = user_service.get_user_or_404(db, operator_id)
+    operator: User = user_service.get_user_by_email_or_404(db, operator_email)
     if operator.role != UserRole.OPERATOR:
         raise ConflictException("Only users with role OPERATOR can be assigned")
 
     bus = bus_service.get_bus_or_404(db, payload.bus_id)
 
-    _ensure_operator_is_free(db, operator_id)
+    _ensure_operator_is_free(db, operator.id)
     if _get_active_driver(db, bus.id) is not None:
         raise ConflictException("Bus already has an active operator assignment")
 
@@ -105,16 +105,19 @@ def create_assignment(
     return get_active_assignment(db, assignment.operator_id)
 
 
-def end_assignment(db: Session, operator_id: UUID) -> OperatorAssignment:
+def end_assignment(db: Session, operator_email: str) -> OperatorAssignment:
     """End the operator's active assignment, keeping it as history.
 
-    This is the explicit action that resolves the 409 returned by POST:
-    management ends the running assignment first, then assigns a new bus.
+    The operator is identified by email (MANAGEMENT only). This is the
+    explicit action that resolves the 409 returned by POST: management ends
+    the running assignment first, then assigns a new bus.
 
     Raises:
-        NotFoundException: if the operator has no active assignment.
+        NotFoundException: if the operator does not exist or has no active
+            assignment.
     """
-    assignment = get_active_assignment_or_404(db, operator_id)
+    operator = user_service.get_user_by_email_or_404(db, operator_email)
+    assignment = get_active_assignment_or_404(db, operator.id)
     assignment.is_active = False
     assignment.ended_at = datetime.now(timezone.utc)
     try:

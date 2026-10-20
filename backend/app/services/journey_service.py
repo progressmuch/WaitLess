@@ -1,9 +1,6 @@
 """Commuter journey discovery service (Phase 5)."""
 
-from datetime import datetime, timezone
-from typing import Optional
-
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, aliased
 
 from app.models.bus import Bus
@@ -14,26 +11,7 @@ from app.models.route_stop import RouteStop
 from app.models.stop import Stop
 from app.models.trip import Trip, TripStatus
 from app.services.eta_service import ETAService
-from app.services.trip_service import get_freshness_status, LOCATION_FRESHNESS_TARGET_MINUTES
-
-
-def _datetime_aware(v: datetime | None) -> Optional[datetime]:
-    if v is None:
-        return None
-    if v.tzinfo is None:
-        return v.replace(tzinfo=timezone.utc)
-    return v.astimezone(timezone.utc)
-
-
-def get_freshness_minutes(received_at: datetime | None) -> Optional[float]:
-    if not received_at:
-        return None
-    now = datetime.now(timezone.utc)
-    dt = _datetime_aware(received_at)
-    delta = (now - dt).total_seconds() / 60.0
-    if delta < 0:
-        return 0.0
-    return delta
+from app.services.trip_service import get_freshness_status
 
 
 def find_journeys(
@@ -85,9 +63,11 @@ def find_journeys(
                 .order_by(Fare.effective_from.desc())
                 .limit(1)
             ).scalar_one_or_none()
-            # Compute freshness
-            fresh_mins = get_freshness_minutes(latest_loc.received_at if latest_loc else None)
-            fs = get_freshness_status(latest_loc) if latest_loc else {"status": "unknown", "minutes_since": fresh_mins}
+            # Compute freshness (GAP-1): one status string, never a dict.
+            if latest_loc:
+                fs = get_freshness_status(latest_loc.captured_at, latest_loc.received_at)
+            else:
+                fs = "unknown"
             # ETA - simple: if we have origin stop lat/lon and latest loc, compute distance from latest to destination? 
             # But we don't have origin coords here easily; use latest location as is - Phase 5 says "ETA" - simple estimate
             eta = None
@@ -97,7 +77,7 @@ def find_journeys(
                 # If bus is moving, estimate based on speed or default
                 dist = ETAService.calculate_distance_km(latest_loc.latitude, latest_loc.longitude, dest.latitude, dest.longitude) if dest else 0
                 speed = latest_loc.speed if latest_loc.speed and latest_loc.speed > 0 else None
-                eta = ETAService.estimate_eta_minutes(dist, speed, is_stale=(fs.get("status") == "very_stale"))
+                eta = ETAService.estimate_eta_minutes(dist, speed, is_stale=(fs == "very_stale"))
             results.append(
                 {
                     "route": {
@@ -123,7 +103,7 @@ def find_journeys(
                     } if latest_loc else None,
                     "last_updated_time": latest_loc.received_at.isoformat() if latest_loc and latest_loc.received_at else None,
                     "eta_minutes": eta,
-                    "freshness_status": fs.get("status"),
+                    "freshness_status": fs,
                 }
             )
     return results

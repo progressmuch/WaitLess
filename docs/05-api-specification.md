@@ -109,14 +109,14 @@ unknown route id returns `404`.
 
 ## 6. Operator Assignments
 
-### POST /operators/{operator_id}/assignments
+### POST /operators/{operator_email}/assignments
 
 Management only.
 
-Assigns a bus to an operator. Returns `409` when the target user is not an
-`OPERATOR`, when that operator already has an active assignment, or when the
-bus already has an active operator. The route an operator sees comes from the
-assigned bus (`buses.route_id`).
+Assigns a bus to an operator, identified by their email address. Returns `409`
+when the target user is not an `OPERATOR`, when that operator already has an
+active assignment, or when the bus already has an active operator. The route
+an operator sees comes from the assigned bus (`buses.route_id`).
 
 ### GET /operators/me/assignment
 
@@ -125,13 +125,14 @@ Operator only.
 Returns the active assignment together with its bus and that bus's route.
 `404` when the operator has no active assignment.
 
-### DELETE /operators/{operator_id}/assignments
+### DELETE /operators/{operator_email}/assignments
 
 Management only.
 
 Ends the operator's active assignment (`ended_at` set, `is_active: false`);
-the record is kept as history. `404` when there is no active assignment. This
-is the action that resolves the `409` returned by POST.
+the record is kept as history. The operator is identified by their email
+address. `404` when there is no active assignment. This is the action that
+resolves the `409` returned by POST.
 
 ## 7. Fares
 

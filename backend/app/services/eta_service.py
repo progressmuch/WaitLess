@@ -36,7 +36,7 @@ class ETAService:
             return None  # or handle stale case per requirements
         if distance_km < 0:
             return 0  # already at destination
-        speed = speed_kmh if speed_kmh and speed_kmh > 0 else ETAService.DEFAULT_SPEED_KMH
+        speed = float(speed_kmh) if speed_kmh and speed_kmh > 0 else ETAService.DEFAULT_SPEED_KMH
         eta_hours = distance_km / speed if speed > 0 else float('inf')
         eta_minutes = int(round(eta_hours * 60))
         if eta_minutes < 0:
