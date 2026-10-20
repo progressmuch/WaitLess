@@ -36,6 +36,18 @@ class Settings(BaseSettings):
     # `TEST_DATABASE_NAME` when it is not set.
     TEST_DATABASE_URL: Optional[str] = None
     TEST_DATABASE_NAME: str = "waitless_test"
+    # SSL mode used for database connections. Only applied when the
+    # connection string does not carry an explicit `sslmode` query parameter.
+    # Supabase requires "require" (or stricter) because it terminates TLS
+    # at the pooler.
+    DATABASE_SSL_MODE: str = "prefer"
+    # Connection pool tuning. Supabase's connection pooler limits how many
+    # backend sessions a client may hold open, so keep these small.
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 5
+    # Recycle connections before the server or pooler closes them.
+    DB_POOL_RECYCLE_SECONDS: int = 1800
+    DB_CONNECT_TIMEOUT_SECONDS: int = 10
 
     # --- Security / JWT --------------------------------------------------
     SECRET_KEY: str = INSECURE_DEFAULT_SECRET_KEY

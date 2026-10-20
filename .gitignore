@@ -48,3 +48,10 @@ logs/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# --- Editor backups / scratch copies -----------------------------------------
+# Leftovers from manual "copy, edit, restore" workflows.
+*.bak
+*.restored
+*.orig
+*.rej

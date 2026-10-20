@@ -1,0 +1,38 @@
+# Render Blueprint for the WaitLess backend.
+#
+# Usage:
+#   1. Push this file to the default branch of the repository.
+#   2. In Render: New -> Blueprint -> select the repository.
+#   3. Render asks for the values marked `sync: false` (DATABASE_URL).
+#      SECRET_KEY is generated automatically.
+#
+# The database itself lives on Supabase; see docs/16-supabase-setup.md.
+services:
+  - type: web
+    name: waitless-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.14"
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "False"
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "30"
+      - key: APP_NAME
+        value: WaitLess
+      - key: API_V1_STR
+        value: /api/v1
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true

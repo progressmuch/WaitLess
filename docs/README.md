@@ -29,6 +29,9 @@ This folder contains the specifications for the Transport Tracking and Commuter 
 | `09-backend-project-structure.md` | Recommended backend structure |
 | `10-openapi-and-api-conventions.md` | API conventions |
 | `11-phase-implementation-prompts.md` | Ready-to-use OpenCode prompts |
+| `12-phase1-summary.md` | Phase 1 summary |
+| `15-completed-phases-5-8.md` | Summary of phases 5–8 |
+| `16-supabase-setup.md` | Supabase database + Render deployment guide |
 
 ## Important Development Principle
 

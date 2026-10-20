@@ -18,7 +18,11 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# ConfigParser treats "%" as an interpolation marker, so a database password
+# containing "%" would break every `alembic` command. Escape it here.
+config.set_main_option(
+    "sqlalchemy.url", settings.DATABASE_URL.replace("%", "%%")
+)
 
 target_metadata = Base.metadata
 
@@ -37,10 +41,19 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    engine_kwargs = {
+        "prefix": "sqlalchemy.",
+        "poolclass": pool.NullPool,
+        "pool_pre_ping": True,
+    }
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        engine_kwargs["connect_args"] = {
+            "connect_timeout": settings.DB_CONNECT_TIMEOUT_SECONDS,
+        }
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
+        **engine_kwargs,
     )
 
     with connectable.connect() as connection:
