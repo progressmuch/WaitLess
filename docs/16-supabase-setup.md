@@ -71,6 +71,10 @@ Notes:
 - The username is `postgres.<ref>` (with a dot), not plain `postgres`.
 - The database name is `postgres`.
 - `?sslmode=require` is mandatory — Supabase terminates TLS at the pooler.
+- **Port 5432 (session mode) is required, not 6543 (transaction mode).** The
+  application uses psycopg 3, which uses server-side prepared statements.
+  Transaction-mode pooling breaks those, so the connection must be pinned to
+  one backend session for its whole lifetime.
 
 If your password contains special characters, URL-encode it
 (`#` → `%23`, `@` → `%40`, `:` → `%3A`, `/` → `%2F`, `?` → `%3F`).

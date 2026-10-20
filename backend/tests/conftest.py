@@ -45,10 +45,13 @@ TEST_PASSWORD = "Password123!"
 def _resolve_test_database_url() -> URL:
     """Work out which PostgreSQL database the tests should use."""
     if settings.TEST_DATABASE_URL:
-        return make_url(settings.TEST_DATABASE_URL)
+        # The database name comes from the URL itself.
+        return make_url(settings.test_database_url)
 
     # Same server/credentials as the app, different database name.
-    return make_url(settings.DATABASE_URL).set(database=settings.TEST_DATABASE_NAME)
+    return make_url(settings.test_database_url).set(
+        database=settings.TEST_DATABASE_NAME
+    )
 
 
 @pytest.fixture(scope="session")

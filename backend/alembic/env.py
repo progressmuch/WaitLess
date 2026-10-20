@@ -21,7 +21,7 @@ if config.config_file_name is not None:
 # ConfigParser treats "%" as an interpolation marker, so a database password
 # containing "%" would break every `alembic` command. Escape it here.
 config.set_main_option(
-    "sqlalchemy.url", settings.DATABASE_URL.replace("%", "%%")
+    "sqlalchemy.url", settings.database_url.replace("%", "%%")
 )
 
 target_metadata = Base.metadata
@@ -46,7 +46,7 @@ def run_migrations_online() -> None:
         "poolclass": pool.NullPool,
         "pool_pre_ping": True,
     }
-    if not settings.DATABASE_URL.startswith("sqlite"):
+    if not settings.database_url.startswith("sqlite"):
         engine_kwargs["connect_args"] = {
             "connect_timeout": settings.DB_CONNECT_TIMEOUT_SECONDS,
         }

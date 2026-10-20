@@ -59,6 +59,40 @@ class Settings(BaseSettings):
         """True when the app runs with production-like settings."""
         return self.ENVIRONMENT.strip().lower() in {"prod", "production"}
 
+    @property
+    def database_url(self) -> str:
+        """The connection string with an explicitly pinned driver.
+
+        SQLAlchemy 2.1 maps a bare `postgresql://` URL to the psycopg 3
+        dialect, but the choice is invisible in the connection string and
+        changes the package that must be installed. Pinning `+psycopg` here
+        keeps the application, Alembic and the test suite on the same driver
+        no matter what else happens to be installed, and turns a confusing
+        "No module named 'psycopg'" failure into an obvious one.
+
+        Only the scheme is rewritten; the rest of the URL (including an
+        already URL-encoded password) is left byte-for-byte intact. A URL
+        that names a driver explicitly is never touched.
+        """
+        url = self.DATABASE_URL
+        if url.startswith("postgresql://"):
+            return url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return url
+
+    @property
+    def test_database_url(self) -> str:
+        """The connection string the test suite should use.
+
+        Reuses `TEST_DATABASE_URL` when it is set, otherwise falls back to
+        `DATABASE_URL`. The driver is pinned the same way as in
+        `database_url`. The database *name* is swapped for
+        `TEST_DATABASE_NAME` by the test fixtures, not here.
+        """
+        url = self.TEST_DATABASE_URL or self.database_url
+        if url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return url
+
     def model_post_init(self, context: Any) -> None:
         """Fail fast on unsafe configuration instead of silently running.
 

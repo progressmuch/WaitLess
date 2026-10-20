@@ -17,7 +17,7 @@ def _engine_options() -> dict:
     contain an `sslmode` query parameter, so an explicit value in the
     connection string always wins.
     """
-    url = make_url(settings.DATABASE_URL)
+    url = make_url(settings.database_url)
     options: dict = {"pool_pre_ping": True}
 
     # SQLite (used by a few local experiments) does not support pooling
@@ -41,7 +41,7 @@ def _engine_options() -> dict:
     return options
 
 
-engine = create_engine(settings.DATABASE_URL, **_engine_options())
+engine = create_engine(settings.database_url, **_engine_options())
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
