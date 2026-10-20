@@ -217,7 +217,50 @@ curl https://waitless.onrender.com/health
 
 ---
 
-## 7. Operational notes
+## 7. Create the first MANAGEMENT account
+
+`POST /api/v1/auth/register` always creates a `COMMUTER`, and
+`POST /api/v1/auth/users` — the only endpoint that can create a staff
+account — requires a `MANAGEMENT` token. The first `MANAGEMENT` user
+therefore has to be created directly in the database.
+
+From the `backend` directory:
+
+```powershell
+..\WaitLessVenv\Scripts\python.exe scripts/create_staff.py `
+  --email "admin@example.com" `
+  --password "YourStrongPassword!" `
+  --role MANAGEMENT
+```
+
+To create the account on Supabase instead of the local database, pass the
+pooler connection string explicitly:
+
+```powershell
+..\WaitLessVenv\Scripts\python.exe scripts/create_staff.py `
+  --database-url "postgresql://postgres.REF:PASS@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require" `
+  --email "admin@example.com" `
+  --password "YourStrongPassword!" `
+  --role MANAGEMENT
+```
+
+The script uses the same Argon2id hashing as the API, so the account can log
+in through `POST /api/v1/auth/login` immediately. It refuses to modify an
+existing account, so re-running it is safe.
+
+Once you hold a `MANAGEMENT` token, every other staff account is created
+through the API:
+
+```bash
+curl -X POST https://<your-url>/api/v1/auth/users \
+  -H "Authorization: Bearer <management-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"full_name":"Bus Driver","email":"driver@example.com","password":"Password123!","role":"OPERATOR"}'
+```
+
+---
+
+## 8. Operational notes
 
 - **Backups**: enable **Point-in-Time Recovery** on the Supabase project
   (paid) or schedule `pg_dump` from a cron job.
@@ -233,7 +276,7 @@ curl https://waitless.onrender.com/health
 
 ---
 
-## 8. Checklist
+## 9. Checklist
 
 - [ ] Supabase project created, password saved
 - [ ] Session-pooler URI copied, password URL-encoded
@@ -244,3 +287,7 @@ curl https://waitless.onrender.com/health
 - [ ] Render web service created with root dir `backend`
 - [ ] Environment variables set, `SECRET_KEY` unique, `ENVIRONMENT=production`
 - [ ] Deploy succeeds and `/health` returns `{"status":"ok"}` on the public URL
+- [ ] `POST /api/v1/auth/register` returns `201` on the public URL
+- [ ] `POST /api/v1/auth/login` returns a JWT on the public URL
+- [ ] First `MANAGEMENT` account created with `scripts/create_staff.py`
+- [ ] `POST /api/v1/auth/users` creates an `OPERATOR` account
