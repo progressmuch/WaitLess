@@ -96,8 +96,13 @@ def find_journeys(
                     } if bus else None,
                     "trip_id": str(trip.id),
                     "latest_location": {
-                        "latitude": latest_loc.latitude,
-                        "longitude": latest_loc.longitude,
+                        # The columns are Numeric, so the ORM hands back a
+                        # Decimal. Cast to float so the JSON contains a number
+                        # here, exactly like in every other endpoint - a
+                        # client must not have to parse "-17.830000" as a
+                        # string.
+                        "latitude": float(latest_loc.latitude),
+                        "longitude": float(latest_loc.longitude),
                         "captured_at": latest_loc.captured_at.isoformat() if latest_loc and latest_loc.captured_at else None,
                         "received_at": latest_loc.received_at.isoformat() if latest_loc and latest_loc.received_at else None,
                     } if latest_loc else None,

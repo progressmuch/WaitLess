@@ -32,6 +32,7 @@ This folder contains the specifications for the Transport Tracking and Commuter 
 | `12-phase1-summary.md` | Phase 1 summary |
 | `15-completed-phases-5-8.md` | Summary of phases 5–8 |
 | `16-supabase-setup.md` | Supabase database + Render deployment guide |
+| `17-user-guide.md` | End-user guide: how each role uses the system |
 
 ## Important Development Principle
 

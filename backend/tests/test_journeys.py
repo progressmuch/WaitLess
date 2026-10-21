@@ -2,6 +2,8 @@
 
 from datetime import datetime, timezone
 
+import pytest
+
 from app.models.user import UserRole
 
 
@@ -103,3 +105,13 @@ def test_journey_search_with_a_posted_location_returns_freshness(
     assert data[0]["freshness_status"] == "fresh"
     assert data[0]["latest_location"] is not None
     assert data[0]["eta_minutes"] is not None
+
+    # The coordinates are Numeric columns, so the ORM hands back a Decimal.
+    # They must still reach the client as JSON numbers, exactly like in
+    # GET /trips/{id}/location/latest - a mobile client must not have to
+    # parse "-17.825200" as a string.
+    location = data[0]["latest_location"]
+    assert isinstance(location["latitude"], float), location["latitude"]
+    assert isinstance(location["longitude"], float), location["longitude"]
+    assert location["latitude"] == pytest.approx(-17.8252, abs=1e-6)
+    assert location["longitude"] == pytest.approx(31.0335, abs=1e-6)
