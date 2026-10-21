@@ -22,6 +22,12 @@ dist/
 *.egg-info/
 .eggs/
 
+# Generated documents
+# docs/17-user-guide.docx is produced from the markdown by
+# docs/convert_to_docx.ps1. Commit it only if you want to publish the
+# Word file straight from the repository.
+*.docx
+
 # --- Caches and tooling ------------------------------------------------------
 .pytest_cache/
 .mypy_cache/
